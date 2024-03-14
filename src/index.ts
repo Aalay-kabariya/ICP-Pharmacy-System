@@ -1,105 +1,128 @@
-// cannister code goes here
 import { v4 as uuidv4 } from 'uuid';
-import { Server, StableBTreeMap, ic } from 'azle';
+import { Server, StableBTreeMap } from 'azle';
 import express from 'express';
 
-/**
- * Type representing a medicine.
- */
-class Medicine {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-}
+// Define types for the Railway Management System
 
-/**
- * Type representing a user's order.
- */
-class Order {
-  id: string;
-  userId: string;
-  medicineId: string;
-  quantity: number;
-  paymentMethod: string;
-  status: string;
-}
+// Represents a train
+type Train = {
+   id: string;
+   name: string;
+   status: string; // Status of the train (e.g., "on time", "delayed", "cancelled")
+   // Add more fields as needed
+};
 
-const medicinesStorage = StableBTreeMap<string, Medicine>(0);
-const ordersStorage = StableBTreeMap<string, Order>(0);
+// Represents a train booking
+type Booking = {
+   id: string;
+   trainId: string;
+   userId: string; // Assuming each user has a unique ID
+   status: string; // Status of the booking (e.g., "confirmed", "cancelled")
+   // Add more fields as needed
+};
 
-export default Server(() => {
-  const app = express();
-  app.use(express.json());
+// Represents a payment transaction
+type Payment = {
+   id: string;
+   bookingId: string;
+   amount: number;
+   status: string; // Status of the payment (e.g., "successful", "pending", "failed")
+   // Add more fields as needed
+};
 
-  // Add a new medicine
-  app.post("/medicines", (req, res) => {
-    const medicine: Medicine = { id: uuidv4(), ...req.body };
-    medicinesStorage.insert(medicine.id, medicine);
-    res.json(medicine);
-  });
+// Storage for trains, bookings, and payments
+const trainsStorage = StableBTreeMap<string, Train>(0);
+const bookingsStorage = StableBTreeMap<string, Booking>(0);
+const paymentsStorage = StableBTreeMap<string, Payment>(0);
 
-  // List all medicines
-  app.get("/medicines", (req, res) => {
-    res.json(medicinesStorage.values());
-  });
+// Initialize Express app
+const app = express();
+app.use(express.json());
 
-  // Buy medicine
-  app.post("/orders", (req, res) => {
-    const order: Order = { id: uuidv4(), ...req.body, status: "Ordered" };
-    const medicine = medicinesStorage.get(order.medicineId).Some;
+// Define endpoints
 
-    if (medicine.stock >= order.quantity) {
-      medicinesStorage.insert(order.medicineId, { ...medicine, stock: medicine.stock - order.quantity });
-      ordersStorage.insert(order.id, order);
-      res.json(order);
-    } else {
-      res.status(400).send("Not enough stock available for the requested quantity.");
-    }
-  });
-
-  // Cancel an order
-  app.delete("/orders/:id", (req, res) => {
-    const orderId = req.params.id;
-    const order = ordersStorage.get(orderId).Some;
-    const medicine = medicinesStorage.get(order.medicineId).Some;
-
-    medicinesStorage.insert(order.medicineId, { ...medicine, stock: medicine.stock + order.quantity });
-    ordersStorage.remove(orderId);
-
-    res.json({ message: "Order canceled successfully." });
-  });
-
-  // Check order status
-  app.get("/orders/:id", (req, res) => {
-    const orderId = req.params.id;
-    const order = ordersStorage.get(orderId);
-    
-    if ("None" in order) {
-      res.status(404).send(`Order with id=${orderId} not found`);
-    } else {
-      const { status } = order.Some;
-      res.json({ status });
-    }
-  });
-
-  // List all orders
-  app.get("/orders", (req, res) => {
-    res.json(ordersStorage.values());
-  });
-
-  return app.listen();
+// Endpoint to list all trains
+app.get("/trains", (req, res) => {
+   res.json(trainsStorage.values());
 });
 
-// Mocking the 'crypto' object for testing purposes
-globalThis.crypto = {
-  getRandomValues: () => {
-    let array = new Uint8Array(32);
+// Endpoint to check train status by ID
+app.get("/trains/:id/status", (req, res) => {
+   const trainId = req.params.id;
+   const train = trainsStorage.get(trainId);
+   if (!train) {
+      res.status(404).send(`Train with ID ${trainId} not found`);
+   } else {
+      res.json({ status: train.status });
+   }
+});
 
-    for let i = 0; i < array.length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
+// Endpoint to list all bookings for a user
+app.get("/bookings/:userId", (req, res) => {
+   const userId = req.params.userId;
+   const userBookings = bookingsStorage.values().filter(booking => booking.userId === userId);
+   res.json(userBookings);
+});
 
-    return array;
-  },
-};
+// Endpoint to book a train
+app.post("/bookings", (req, res) => {
+   const { trainId, userId } = req.body;
+   // Check if the train exists
+   const train = trainsStorage.get(trainId);
+   if (!train) {
+      res.status(404).send(`Train with ID ${trainId} not found`);
+      return;
+   }
+   // Create a new booking
+   const bookingId = uuidv4();
+   const booking: Booking = {
+      id: bookingId,
+      trainId,
+      userId,
+      status: "confirmed", // Assuming the booking is confirmed by default
+   };
+   bookingsStorage.insert(bookingId, booking);
+   res.json(booking);
+});
+
+// Endpoint to cancel a booking
+app.delete("/bookings/:id", (req, res) => {
+   const bookingId = req.params.id;
+   // Check if the booking exists
+   const booking = bookingsStorage.get(bookingId);
+   if (!booking) {
+      res.status(404).send(`Booking with ID ${bookingId} not found`);
+      return;
+   }
+   // Update the booking status to "cancelled"
+   booking.status = "cancelled";
+   bookingsStorage.insert(bookingId, booking); // Update the booking in storage
+   res.json({ message: "Booking cancelled successfully" });
+});
+
+// Endpoint to process a payment for a booking
+app.post("/payments", (req, res) => {
+   const { bookingId, amount } = req.body;
+   // Check if the booking exists
+   const booking = bookingsStorage.get(bookingId);
+   if (!booking) {
+      res.status(404).send(`Booking with ID ${bookingId} not found`);
+      return;
+   }
+   // Perform payment processing logic (not implemented in this example)
+   // For demonstration purposes, assume the payment is successful
+   const paymentId = uuidv4();
+   const payment: Payment = {
+      id: paymentId,
+      bookingId,
+      amount,
+      status: "successful",
+   };
+   paymentsStorage.insert(paymentId, payment);
+   res.json(payment);
+});
+
+// Start the Express server
+export default Server(() => {
+   return app.listen();
+});
