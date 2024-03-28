@@ -1,9 +1,11 @@
 import express from "express";
 import { v4 as uuidv4 } from 'uuid';
 import { Server, StableBTreeMap } from 'azle';
+import express from 'express';
 
 // Define types for the Railway Management System
 
+// Represents a train
 enum TrainStatus {
    OnTime = "on time",
    Delayed = "delayed",
@@ -13,24 +15,33 @@ enum TrainStatus {
 type Train = {
    id: string;
    name: string;
+   status: string; // Status of the train (e.g., "on time", "delayed", "cancelled")
+   // Add more fields as needed
    status: TrainStatus;
 };
 
+// Represents a train booking
 type BookingStatus = "confirmed" | "cancelled";
 
 type Booking = {
    id: string;
    trainId: string;
+   userId: string; // Assuming each user has a unique ID
+   status: string; // Status of the booking (e.g., "confirmed", "cancelled")
+   // Add more fields as needed
    userId: string;
    status: BookingStatus;
 };
 
+// Represents a payment transaction
 type PaymentStatus = "successful" | "pending" | "failed";
 
 type Payment = {
    id: string;
    bookingId: string;
    amount: number;
+   status: string; // Status of the payment (e.g., "successful", "pending", "failed")
+   // Add more fields as needed
    status: PaymentStatus;
 };
 
@@ -38,18 +49,14 @@ type Payment = {
 const trainsStorage = StableBTreeMap<string, Train>(0);
 const bookingsStorage = StableBTreeMap<string, Booking>(0);
 const paymentsStorage = StableBTreeMap<string, Payment>(0);
-
 // Initialize Express app
 const app = express();
 app.use(express.json());
-
 // Define endpoints
-
 // Endpoint to list all trains
 app.get("/trains", (req, res) => {
    res.json(trainsStorage.values());
 });
-
 // Endpoint to check train status by ID
 app.get("/trains/:id/status", (req, res) => {
    const trainId = req.params.id;
@@ -60,14 +67,12 @@ app.get("/trains/:id/status", (req, res) => {
       res.json({ status: train.status });
    }
 });
-
 // Endpoint to list all bookings for a user
 app.get("/bookings/:userId", (req, res) => {
    const userId = req.params.userId;
    const userBookings = bookingsStorage.values().filter(booking => booking.userId === userId);
    res.json(userBookings);
 });
-
 // Endpoint to book a train
 app.post("/bookings", (req, res) => {
    const { trainId, userId } = req.body;
@@ -88,7 +93,6 @@ app.post("/bookings", (req, res) => {
    bookingsStorage.insert(bookingId, booking);
    res.json(booking);
 });
-
 // Endpoint to cancel a booking
 app.delete("/bookings/:id", (req, res) => {
    const bookingId = req.params.id;
@@ -103,7 +107,6 @@ app.delete("/bookings/:id", (req, res) => {
    bookingsStorage.insert(bookingId, booking); // Update the booking in storage
    res.json({ message: "Booking cancelled successfully" });
 });
-
 // Endpoint to process a payment for a booking
 app.post("/payments", (req, res) => {
    const { bookingId, amount } = req.body;
@@ -125,7 +128,6 @@ app.post("/payments", (req, res) => {
    paymentsStorage.insert(paymentId, payment);
    res.json(payment);
 });
-
 // Start the Express server
 export default Server(() => {
    return app.listen();
