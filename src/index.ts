@@ -1,33 +1,37 @@
+import express from "express";
 import { v4 as uuidv4 } from 'uuid';
 import { Server, StableBTreeMap } from 'azle';
-import express from 'express';
 
 // Define types for the Railway Management System
 
-// Represents a train
+enum TrainStatus {
+   OnTime = "on time",
+   Delayed = "delayed",
+   Cancelled = "cancelled"
+}
+
 type Train = {
    id: string;
    name: string;
-   status: string; // Status of the train (e.g., "on time", "delayed", "cancelled")
-   // Add more fields as needed
+   status: TrainStatus;
 };
 
-// Represents a train booking
+type BookingStatus = "confirmed" | "cancelled";
+
 type Booking = {
    id: string;
    trainId: string;
-   userId: string; // Assuming each user has a unique ID
-   status: string; // Status of the booking (e.g., "confirmed", "cancelled")
-   // Add more fields as needed
+   userId: string;
+   status: BookingStatus;
 };
 
-// Represents a payment transaction
+type PaymentStatus = "successful" | "pending" | "failed";
+
 type Payment = {
    id: string;
    bookingId: string;
    amount: number;
-   status: string; // Status of the payment (e.g., "successful", "pending", "failed")
-   // Add more fields as needed
+   status: PaymentStatus;
 };
 
 // Storage for trains, bookings, and payments
